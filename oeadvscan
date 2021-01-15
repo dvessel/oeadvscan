@@ -1,0 +1,211 @@
+#!/bin/zsh
+set -e
+
+# For use on MAME files managed by OpenEmu.
+#
+# All options apply to roms, disks (chd) and samples.
+#
+# Options:
+#
+#   scan           : Generates a report specific to your collection. (default)
+#   scan-verbose   : Massive report dump includes everything supported by MAME.
+#   repair         : Repairs roms/disks/samples.
+#   repair-preview : Safe preview of changes.
+#
+#   Or pass in arguments for advscan minus the xml info file.
+#   Preset text commands and pass-through arguments cannot be combined.
+#   See 'advscan --help' or 'man advscan'."
+#
+#   --version=NUMBER can optionally be set to a specific MAME version. Applies
+#   to all commands including pass-through commands for advscan. The version is
+#   determined by the MAME core plugin from OpenEmu when not set.
+#
+#   --save-report will save the output to 'AdvanceScan/reports'.
+#
+function oe.advscan {
+  i=$argv[(i)--version=*]   && va=$argv[$i] && argv[$i]=()
+  i=$argv[(i)--save-report] && sa=$argv[$i] && argv[$i]=()
+
+  command=${@:-help}
+  version=`oe.version ${va#*=}`
+  savereport=${sa}
+
+  oe.homedir
+  oe.mameinfo
+
+  # Add disk sub-directories to the advscan.rc file so it can be seen.
+  sed -i '' -E "s|^(disk ).*|\1roms:`find roms/* -type d | tr '\n' ':'`|" advscan.rc
+
+  if [[ $command == scan ]]; then
+    oe.action "Scanning... ver.$version"
+    advscan -rkspP < mame$version.xml 2> >(grep -v sampleof >&2) | oe.filter clean | oe.out
+
+  elif [[ $command == scan-verbose ]]; then
+    oe.action "Scanning (verbose)... ver.$version"
+    advscan -rksvpP < mame$version.xml 2> >(grep -v sampleof >&2) | oe.filter mark | oe.out
+
+  elif [[ $command == repair ]]; then
+    oe.action "Repairing... ver.$version"
+    advscan -rksbdutgP < mame$version.xml 2> >(grep -v sampleof >&2) | oe.out
+
+  elif [[ $command == repair-preview ]]; then
+    oe.action "Repairing (preview)... ver.$version"
+    advscan -rksbdutgnP < mame$version.xml 2> >(grep -v sampleof >&2) | oe.out
+
+  elif [[ $command == -* ]]; then
+    oe.action "advscan $command ... ver.$version"
+    advscan $command < mame$version.xml 2> >(grep -v sampleof >&2) | oe.out
+
+  elif [[ $command == help ]]; then
+    echo "Valid options:
+
+    scan           : Generates a report specific to your collection. (default)
+    scan-verbose   : Massive report dump includes everything supported by MAME.
+    repair         : Repairs roms/disks/samples.
+    repair-preview : Safe preview of changes.
+
+    Or pass in arguments for advscan minus the xml info file.
+    Preset text commands and pass-through arguments cannot be combined.
+    See 'advscan --help' or 'man advscan'.
+
+    --version=NUMBER can optionally be set to a specific MAME version. Applies
+    to all commands including pass-through commands for advscan. The version is
+    determined by the MAME core plugin from OpenEmu when not set.
+
+    --save-report will save the output to 'AdvanceScan/reports'.\n"
+
+  else
+    xcommand=$command
+    oe.advscan help
+    oe.error "The command \033[0;31m$xcommand\033[0m does not exist."
+  fi
+
+}
+
+function oe.version {
+  local oecoreplugin=$HOME/Library/Application\ Support/OpenEmu/Cores/MAME.oecoreplugin
+
+  if [[ -d $oecoreplugin || $@ ]]; then
+    echo ${${${@:-`defaults read $oecoreplugin/Contents/Info.plist CFBundleVersion`}/./}%%.*}
+  else
+    oe.error "Could not determine MAME core version. Install it through OpenEmu's core preferences."
+  fi
+}
+
+function oe.homedir {
+  local basedir=$HOME/Library/Application\ Support/OpenEmu
+
+  # Go back to current directory when done.
+  # advscan can't resolve paths when run outside advscan.rc.
+  trap 'cd "`pwd`"' INT TERM EXIT
+
+  # If the directory exists, cd in and exit.
+  [[ -d $basedir/AdvanceScan ]] && cd $basedir/AdvanceScan && return
+
+  if [[ ! -e $basedir/Game\ Library/roms/Arcade ]]; then
+    oe.error "Custom game library location is not supported."
+  fi
+
+  oe.action "Setting up AdvanceScan..."
+  mkdir -p $basedir/AdvanceScan && cd "$_"
+  mkdir -p new _import _unknown/roms _unknown/disks _unknown/samples ../MAME/samples
+  ln -s ../Game\ Library/roms/Arcade roms && ln -s ../MAME/samples samples
+
+cat <<-EOF > advscan.rc
+	rom_import _import
+	rom_new new
+	rom roms:new
+# Disk paths will be overwritten.
+# Subfolders will be added automatically so advscan can see chd files.
+	disk roms
+	sample samples
+	rom_unknown _unknown/roms
+	disk_unknown _unknown/disks
+	sample_unknown _unknown/samples
+EOF
+
+}
+
+function oe.mameinfo {
+    # If the file exists, exit.
+  [[ -f mame$version.xml ]] && return
+
+  local url=https://github.com/mamedev/mame/releases/download/mame$version/mame${version}lx.zip
+  local archive=${TMPDIR}mame${version}lx.zip
+
+  oe.action "Getting info file - mame$version.xml for ver.$version"
+  # Check for existing archive and make sure it's not corrupt.
+  if [[ ! -f $archive ]] || ! unzip -tqq $archive > /dev/null 2>&1; then
+    if ! ( curl -o /dev/null --silent --head --fail $url && curl -Lo $archive $url ); then
+      oe.error "The file 'mame${version}lx.zip' could not be downloaded. Check the version number and try again."
+    fi
+  fi
+  echo
+
+  unzip $archive -d ./
+}
+
+function oe.filter {
+  local label=${1:?'Label argument required.'}
+
+  if [[ $label == clean ]]; then
+    # Lists good, bad, misreported missing files and supplementary info.
+    perl -ne 'print if ! (/^game_(rom|sample|disk)_(good|bad|miss|dup) ([a-z0-9_]*) .*\n/ &&
+      ( ! -e "$1s/$3.zip" && ! -e "new/$3.zip" && ! -d "roms/$3" ))'
+  elif [[ $label == mark ]]; then
+    perl -pe 'print /^game_(rom|sample|disk)_(good|bad|miss|dup) ([a-z0-9_]*) .*/ &&
+      ( -e "$1s/$3.zip" || -e "new/$3.zip" || -d "roms/$3" ) ? "+ " : /^game_.*/ ? "- " : ""'
+  fi
+}
+
+function oe.colorize {
+  local color_filters
+
+  # duplicate         : purple
+  # preliminary       : cyan
+  # bad or incomplete : red
+  # missing           : yellow
+  # various others    : gray
+  color_filters='/^(?:\+ )?'
+  color_filters+='(?:[a-z]+_){0,2}(good|bad|miss|dup|text|binary|garbage) |'
+  color_filters+='Rom.*(preliminary|bad|incomplete|missing) |'
+  color_filters+='(total|Missing|-)[_ ]'
+  color_filters+='/; print (
+    $1 eq dup         ? "\033[0;35m" :
+    $2 eq preliminary ? "\033[0;36m" :
+   ($1 eq bad or
+    $2 eq bad or
+    $2 eq incomplete) ? "\033[0;31m" :
+   ($1 eq miss or
+    $2 eq missing or
+    $3 eq Missing)    ? "\033[0;33m" :
+   ($1 eq text or
+    $1 eq binary or
+    $1 eq garbage or
+    $3 eq total or
+    $3 eq "-")        ? "\033[0;37m" :
+                        "\033[0m"
+  )'
+  perl -pe $color_filters
+}
+
+function oe.out {
+  if [[ $savereport ]]; then
+    mkdir -p "reports"
+    tee "reports/`date "+%y.%m.%d,%H.%M.%S"`,${command},$version.txt" | oe.colorize
+  else
+    oe.colorize
+  fi
+}
+
+function oe.action {
+  echo "\033[1;37m$@\033[0m\n"
+}
+
+function oe.error {
+  echo "$@\n" 1>&2 && exit 1
+}
+
+if type advscan &>/dev/null; then oe.advscan $@; else
+  oe.error "advscan is not available. Install 'advancescan' through homebrew."
+fi
