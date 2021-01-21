@@ -5,23 +5,6 @@ set -e
 #
 # All options apply to roms, disks (chd) and samples.
 #
-# Options:
-#
-#   scan           : Generates a report specific to your collection. (default)
-#   scan-verbose   : Massive report dump includes everything supported by MAME.
-#   repair         : Repairs roms/disks/samples.
-#   repair-preview : Safe preview of changes.
-#
-#   Or pass in arguments for advscan minus the xml info file.
-#   Preset text commands and pass-through arguments cannot be combined.
-#   See 'advscan --help' or 'man advscan'."
-#
-#   --version=NUMBER can optionally be set to a specific MAME version. Applies
-#   to all commands including pass-through commands for advscan. The version is
-#   determined by the MAME core plugin from OpenEmu when not set.
-#
-#   --save-report will save the output to 'AdvanceScan/reports'.
-#
 function oe.advscan {
   i=$argv[(i)--version=*]   && va=$argv[$i] && argv[$i]=()
   i=$argv[(i)--save-report] && sa=$argv[$i] && argv[$i]=()
@@ -59,7 +42,7 @@ function oe.advscan {
   elif [[ $command == help ]]; then
     echo "Valid options:
 
-    scan           : Generates a report specific to your collection. (default)
+    scan           : Generates a report specific to your collection.
     scan-verbose   : Massive report dump includes everything supported by MAME.
     repair         : Repairs roms/disks/samples.
     repair-preview : Safe preview of changes.

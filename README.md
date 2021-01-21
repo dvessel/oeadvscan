@@ -1,6 +1,6 @@
 # oeadvscan
 
-[AdvanceScan](https://github.com/amadvance/advancescan) for MAME ROMs managed through [OpenEmu](http://openemu.org) core.
+[AdvanceScan](https://github.com/amadvance/advancescan) for MAME ROMs managed through [OpenEmu](http://openemu.org).
 
 This is a wrapper for `advscan`. A utility to repair and update MAME rom sets. It was made to simplify its use for OpenEmu. Install it through Homebrew with the following:
 
@@ -10,7 +10,7 @@ This is a wrapper for `advscan`. A utility to repair and update MAME rom sets. I
 
     oeadvscan [command] --version=N --save-report
 
-    scan           : Generates a report specific to your collection. (default)
+    scan           : Generates a report specific to your collection.
     scan-verbose   : Massive report dump includes everything supported by MAME.
     repair         : Repairs roms/disks/samples.
     repair-preview : Safe preview of changes.
@@ -27,9 +27,7 @@ This is a wrapper for `advscan`. A utility to repair and update MAME rom sets. I
 
 # more info
 
-MAME updates often come with new and updated set of ROM’s and the slightest change will prevent it from running. It’s very strict, making sure every byte is valid before the game is allowed to run.
-
-They will be treated as a [**split set**, not merged or non-merged sets](https://choccyhobnob.com/demystifying-mame-roms/) and they must be in the form of zip files. If you run it on anything but a split set, it may strip parent dependencies from the archive preventing it from running. You will have to add the parent back into your roms folder if this occurs.
+ROMs will be treated as a [**split set**, not merged or non-merged sets](https://choccyhobnob.com/demystifying-mame-roms/) and they must be in the form of zip files. If you run it on anything but a split set, it may strip parent dependencies from the set preventing it from running. You will have to add the parent back into your roms folder if this occurs.
 
 A new folder will be created within `~/Library/Application Support/OpenEmu/AdvanceScan`. Your games library must be at their default location for it to work. A `sample` directory will be created if it doesn't exist and it will be soft linked along with the `Arcade` roms folder.
 
