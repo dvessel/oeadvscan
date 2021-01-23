@@ -173,7 +173,7 @@ function oe.colorize {
 }
 
 function oe.out {
-  if [[ $savereport ]]; then
+  if [[ ! -z $savereport ]]; then
     mkdir -p "reports"
     tee "reports/`date "+%y.%m.%d,%H.%M.%S"`,${command},$version.txt" | oe.colorize
   else
