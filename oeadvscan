@@ -17,9 +17,7 @@ function oe.advscan {
   oe.mameinfo
 
   # Add disk sub-directories to the advscan.rc file so it can be seen.
-  if ddir=(`find roms/* -type d`) && [[ ! -z $ddir ]]; then
-    sed -i '' -E "s|^(disk ).*|\1${(j[:])ddir}|" advscan.rc
-  fi
+  ddir=(`find roms/* -type d`) && sed -i '' -E "s|^(disk ).*|\1roms:${(j[:])ddir}|" advscan.rc
 
   if [[ $command == scan ]]; then
     oe.action "Scanning... ver.$version"
